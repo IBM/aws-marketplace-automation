@@ -1,0 +1,29 @@
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oms-ingress
+  namespace: oms
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx  # Replace with the correct IngressClass name
+  rules:
+    - host: sterlingoms.ibmworkshops.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oms-smcfs-svc
+                port:
+                  number: 9080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oms-smcfs-svc
+                port:
+                  number: 9443
+
