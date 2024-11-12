@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with DB2 installation and S3 access.
+
+Parameters:
+  # VPC and Networking Parameters
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select an existing VPC ID for the EC2 instance.
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Select an existing Subnet ID for the EC2 instance.
+  SecurityGroupName:
+    Type: String
+    Default: oms-db2-security-group
+    Description: Name of the Security Group (e.g., oms-db2-security-group).
+  SecurityGroupDescription:
+    Type: String
+    Description: Description of the security group.
+
+  # EC2 Instance Settings
+  InstanceName:
+    Type: String
+    Default: oms_db2_instance
+    Description: Name of the EC2 instance (e.g., oms_db2_instance).
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    Description: EC2 instance type (e.g., t3.medium).
+  EbsSize:
+    Type: Number
+    Default: 100
+    Description: Size of the EBS volume in GB.
+  AmiId:
+    Type: String
+    Default: ami-00eb69d236edcfaf8
+    Description: AMI ID for the EC2 instance.
+  KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of the EC2 Key Pair for SSH access.
+
+  # DB2 Settings
+  DbInstance:
+    Type: String
+    Default: db2inst1
+    Description: DB2 instance name.
+  DbUsername:
+    Type: String
+    Default: db2inst1
+    Description: DB2 username.
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Description: DB2 password.
+  DbPort:
+    Type: Number
+    Default: 50000
+    Description: DB2 port.
+  DbName:
+    Type: String
+    Default: OMSDB
+    Description: DB2 database name (e.g., OMSDB).
+  DbSchema:
+    Type: String
+    Default: OMS
+    Description: Default schema name (e.g., OMS).
+  DbInstallerFile:
+    Type: String
+    Description: S3 URL for DB2 installer file (e.g., s3://oms-installer-bucket/DB2_Svr_11.5_Linux_x86-64.tar.gz).
+  DbResponseFile:
+    Type: String
+    Description: S3 URL for DB2 response file (e.g., s3://oms-installer-bucket/db2server.rsp).
+
+Resources:
+  # Security Group
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref SecurityGroupDescription
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'
+
+  # IAM Role and Policies
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EC2InstanceS3ReadRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+
+  S3ReadPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: EC2S3ReadPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "arn:aws:s3:::oms-installer-bucket"
+              - !Sub "arn:aws:s3:::oms-installer-bucket/*"
+      Roles:
+        - !Ref EC2InstanceRole
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  # EC2 Instance
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiId
+      KeyName: !Ref KeyPair
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref EbsSize
+      Tags:
+        - Key: Name
+          Value: !Ref InstanceName
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          LOG_DIR="/tmp/db2_deploy_logs"
+          LOG_FILE="$LOG_DIR/install.log"
+          mkdir -p $LOG_DIR
+          exec > >(tee -a "$LOG_FILE") 2>&1
+
+          echo "================== DB2 Installation Log =================="
+          echo "Script started at: $(date)"
+
+          # Check if unzip is installed; if not, install it
+          if ! command -v unzip &> /dev/null; then
+            echo "[$(date)] unzip not found, installing..."
+            sudo apt-get update && sudo apt-get install -y unzip
+          else
+            echo "[$(date)] unzip is already installed."
+          fi
+
+          # Install AWS CLI
+          echo "[$(date)] Starting AWS CLI installation..."
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install
+          rm awscliv2.zip
+          echo "[$(date)] AWS CLI installation completed."
+
+          # Variables
+          DB_INSTANCE=${DbInstance}
+          DB_USERNAME=${DbUsername}
+          DB_PASSWORD=${DbPassword}
+          DB_PORT=${DbPort}
+          DB_NAME=${DbName}
+          DB_SCHEMA=${DbSchema}
+          DB_INSTALLER_FILE=${DbInstallerFile}
+          DB_RESPONSE_FILE=${DbResponseFile}
+
+          # Functions
+          installDB2() {
+              echo "[$(date)] Starting DB2 installation..."
+              aws s3 cp $DB_INSTALLER_FILE /tmp/
+              tar -xvf /tmp/$(basename $DB_INSTALLER_FILE) -C /tmp/
+              aws s3 cp $DB_RESPONSE_FILE /tmp/
+              /tmp/server_dec/db2setup -r /tmp/$(basename $DB_RESPONSE_FILE)
+              echo "[$(date)] DB2 installation completed."
+          }
+
+          createUser() {
+              echo "[$(date)] Creating user: $DB_INSTANCE..."
+              useradd -m -d /home/$DB_INSTANCE $DB_INSTANCE
+              echo "$DB_INSTANCE:$DB_PASSWORD" | chpasswd
+              echo "[$(date)] User $DB_INSTANCE created."
+          }
+
+          createInstance() {
+              echo "[$(date)] Creating DB2 instance: $DB_INSTANCE..."
+              /opt/ibm/db2/V11.5/instance/db2icrt -s ese -u $DB_USERNAME -p $DB_PORT $DB_INSTANCE
+              . /home/$DB_INSTANCE/sqllib/db2profile
+              echo "[$(date)] DB2 instance $DB_INSTANCE created."
+          }
+
+          createDB(){
+              echo "[$(date)] Creating database: $DB_NAME..."
+              su - $DB_INSTANCE -c "
+              db2 update dbm config using SVCENAME $DB_PORT DEFERRED
+              db2set DB2COMM=tcpip
+              db2start
+
+              db2 create db '$DB_NAME' ALIAS '$DB_NAME' using codeset UTF-8 territory US pagesize 32 K
+              "
+              echo "[$(date)] Database $DB_NAME and schema $DB_SCHEMA created."
+          }
+          configDB() {
+              echo "[$(date)] Configuring database $DB_INSTANCE..."
+              su - $DB_INSTANCE -c "
+              db2 connect to $DB_NAME
+              db2 CREATE BUFFERPOOL MAXBUFPOOL IMMEDIATE SIZE 4096 AUTOMATIC PAGESIZE 32 K
+              db2 CREATE REGULAR TABLESPACE MAXDATA PAGESIZE 32 K MANAGED BY AUTOMATIC STORAGE INITIALSIZE 5000 M BUFFERPOOL MAXBUFPOOL
+              db2 CREATE TEMPORARY TABLESPACE MAXTEMP PAGESIZE 32 K MANAGED BY AUTOMATIC STORAGE BUFFERPOOL MAXBUFPOOL
+              db2 CREATE REGULAR TABLESPACE MAXINDEX PAGESIZE 32 K MANAGED BY AUTOMATIC STORAGE INITIALSIZE 5000 M BUFFERPOOL MAXBUFPOOL
+
+              db2 create schema $DB_SCHEMA authorization db2inst1
+              "
+              echo "[$(date)] Database $DB_INSTANCE configured."
+          }
+          # Execute Functions
+          installDB2
+          createUser
+          createInstance
+          createDB
+          configDB
+
+          echo "Script completed at: $(date)"
+
+Outputs:
+  InstancePublicIP:
+    Description: Public IP of the EC2 instance.
+    Value: !GetAtt MyEC2Instance.PublicIp

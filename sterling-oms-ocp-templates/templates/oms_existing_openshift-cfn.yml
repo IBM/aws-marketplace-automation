@@ -1,0 +1,511 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template for an self-managed Openshift deployment.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Existing Cluster
+        Parameters:
+          - OCPURL
+          - OCPUsername
+          - OCPPassword                
+      - Label:
+          default: OMS
+        Parameters:
+          - EntitlementKey
+          - License
+          - Edition
+          - Version
+      - Label: 
+          default: Bootnode Configuration
+        Parameters:
+          - BootnodeName
+          - VPCID
+          - PublicSubnet1ID
+          - BootNodeAccessCIDR
+          - KeyPairName
+      - Label:
+          default: Database Configuration
+        Parameters:  
+          - DatabaseType
+          - DatabaseHostName
+          - DatabasePort
+          - DatabaseUserName
+          - DatabasePassword
+          - DatabaseSchema
+          - DatabaseName                     
+
+Parameters:
+  EntitlementKey:
+    Description: Enter your OMS Entitlement Key.
+    Type: String
+    NoEcho: true
+  License:
+    Description: Select your agreement to license.
+    Type: String
+    AllowedValues:
+      - Agree
+  Edition:
+    Description: Select your OMS Edition.
+    Type: String
+    AllowedValues:
+      - professional
+      - enterprise
+  Version:
+    Description: "Select your OMS version. (Ex: 10.0.2306.0)"
+    Type: String
+  DatabaseType:
+    Description: Type of the database to use (DB2 or PostgreSQL).
+    Type: String
+    AllowedValues:
+      - DB2
+      - PostgreSQL
+    Default: PostgreSQL
+  DatabaseHostName:
+    Description: Hostname or IP address of the database server.
+    Type: String
+  DatabasePort:
+    Description: Port number for database connection.
+    Type: Number
+    Default: 5432
+  DatabaseUserName:
+    Description: Username for connecting to the database.
+    Type: String
+  DatabasePassword:
+    Description: Password for the database user (hidden for security).
+    Type: String
+    NoEcho: true
+  DatabaseSchema:
+    Description: Schema name to use within the database.
+    Type: String
+  DatabaseName:
+    Description: Name of the database.
+    Type: String     
+
+  OCPURL:
+    Description: Enter the URL of your existing Openshift cluster
+    Type: String  
+  OCPUsername:
+    Description: Username to login to given OCP cluster.
+    Type: String 
+  OCPPassword:
+    Description: Password to login to given OCP cluster.
+    Type: String    
+    NoEcho: true
+  VPCID:
+    Description: The ID of your existing VPC for deployment.
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03738f32953df603f
+  BootNodeAccessCIDR:
+    AllowedPattern: ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$
+    ConstraintDescription: CIDR block parameter must be in the form x.x.x.x/x
+    Description: The CIDR IP range that is permitted to access boot node instance. We recommend that you set this value to a trusted IP range. The value `0.0.0.0/0` permits all IP addresses to access. Additional values can be added post-deployment from the Amazon EC2 console.
+    Type: String
+    Default: 0.0.0.0/0
+  KeyPairName:
+    Description: The name of an existing public/private key pair, which allows you
+      to securely connect to your instance after it launches.
+    Type: AWS::EC2::KeyPair::KeyName
+  BootnodeName:
+    Default: "os-d01"
+    Description: Custom cluster name for kubernetes.io/cluster/tags.
+    Type: String
+    AllowedPattern: ^[0-9a-z-]*$
+  PublicSubnet1ID:
+    Description: The ID of the public subnet in Availability Zone A for the ELB load balancer (e.g., subnet-9bc642ac).
+    Type: String
+    Default: "subnet-068bc9661bea107d1"    
+   
+      
+
+Mappings:
+  AWSAMIRegionMap:
+    us-east-1:
+      BootNodeAmiId: ami-06640050dc3f556bb
+      OCSAmiId: ami-03d1c2cba04df838c
+    us-east-2:
+      BootNodeAmiId: ami-092b43193629811af
+      OCSAmiId: ami-0ddab715d6b88a315
+    us-west-1:
+      BootNodeAmiId: ami-0186e3fec9b0283ee
+      OCSAmiId: ami-09b797de07577bf33
+    us-west-2:
+      BootNodeAmiId: ami-08970fb2e5767e3b8
+      OCSAmiId: ami-0617611237b58ac93
+    ap-south-1:
+      BootNodeAmiId: ami-05c8ca4485f8b138a
+      OCSAmiId: ami-08dfa06820a4fb482
+    ap-northeast-3:
+      BootNodeAmiId: ami-044921b7897a7e0da
+      OCSAmiId: ami-0591a1337ebe93646
+    ap-northeast-2:
+      BootNodeAmiId: ami-06c568b08b5a431d5
+      OCSAmiId: ami-0adf87370198caaed
+    ap-southeast-1:
+      BootNodeAmiId: ami-051f0947e420652a9
+      OCSAmiId: ami-05345a132d89bd2b6
+    ap-southeast-2:
+      BootNodeAmiId: ami-0808460885ff81045
+      OCSAmiId: ami-00274925d47c6e015
+    ap-northeast-1:
+      BootNodeAmiId: ami-0f903fb156f24adbf
+      OCSAmiId: ami-09cc1da8a6fa42c4e
+    ca-central-1:
+      BootNodeAmiId: ami-0c3d3a230b9668c02
+      OCSAmiId: ami-0baeff23c4cc6ddf5
+    eu-central-1:
+      BootNodeAmiId: ami-0e7e134863fac4946
+      OCSAmiId: ami-083ab4c282bac44b5
+    eu-west-1:
+      BootNodeAmiId: ami-0f0f1c02e5e4d9d9f
+      OCSAmiId: ami-07323d56fb932c84c
+    eu-west-2:
+      BootNodeAmiId: ami-035c5dc086849b5de
+      OCSAmiId: ami-0cabefac75acfd8e3
+    eu-west-3:
+      BootNodeAmiId: ami-0460bf124812bebfa
+      OCSAmiId: ami-01f9af256e3213df9
+    eu-north-1:
+      BootNodeAmiId: ami-06a2a41d455060f8b
+      OCSAmiId: ami-0791daa430c70ff09
+    sa-east-1:
+      BootNodeAmiId: ami-0c1b8b886626f940c
+      OCSAmiId: ami-0dd8411ece8c06dae
+    ap-east-1:
+      BootNodeAmiId: ami-011a403f2a9b2c39f
+      OCSAmiId: ami-03ac23c984c812cb4            
+      
+Resources:
+  OCSKMSKey:
+    Type: 'AWS::KMS::Key'
+    Properties:
+      Description: OCS KMS key
+      Enabled: True
+      EnableKeyRotation: False
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      PendingWindowInDays: 7
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/AdministratorAccess        
+      Path: /
+      Policies:
+        - PolicyName: lambda-cleanUpLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:SendCommand
+                  - ssm:PutParameter
+                  - ssm:GetParameter
+                  - ssm:DeleteParameter
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - logs:FilterLogEvents
+                Resource:
+                  - '*' 
+
+  BootNodeIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service:
+            - "ec2.amazonaws.com"
+          Action:
+          - "sts:AssumeRole"
+        - Effect: "Allow"
+          Principal:
+            AWS:
+            - Ref: AWS::AccountId
+          Action:
+          - "sts:AssumeRole"
+      MaxSessionDuration: 43200
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/AWSCloudFormationReadOnlyAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess        
+      Policies:
+      - PolicyName: bootnode-policy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action: "ec2:Describe*"
+            Resource: "*"
+          - Effect: "Allow"
+            Action: "ec2:AttachVolume"
+            Resource: "*"
+          - Effect: "Allow"
+            Action: "ec2:DetachVolume"
+            Resource: "*"
+          - Effect: "Allow"
+            Action: "route53:*"
+            Resource: "*"
+          - Effect: "Allow"
+            Action:
+            - "secretsmanager:GetSecretValue"
+            - "secretsmanager:UpdateSecret"
+            - "secretsmanager:CreateSecret"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ssm:SendCommand
+            - ssm:PutParameter
+            - ssm:GetParameter
+            Resource:
+            - '*'  
+
+  BootnodeInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: "BootNodeIamRole"
+
+  BootnodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cluster Bootnode Security Group
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref BootNodeAccessCIDR
+      VpcId: !Ref VPCID
+
+  BootnodeInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          Required:
+            - StackPropertiesFile
+        StackPropertiesFile:
+          files:
+            /root/mystack.props:
+              content: !Sub |
+                AWS_REGION=${AWS::Region}
+                AWS_STACKID="${AWS::StackId}"
+                AWS_STACKNAME="${AWS::StackName}"
+              mode: '000644'
+              owner: root
+              group: root
+            /home/ec2-user/destroy.sh:
+              content: !Sub |
+                echo "$1 - Destroy"
+                export HOME=/home/ec2-user
+                cd $HOME/installer
+                sudo openshift-install destroy cluster > $HOME/destroy.log
+                echo "Destroy completed"
+                aws ssm put-parameter --name $1"_CleanupStatus" --type "String" --value "READY" --overwrite
+              mode: '000755'
+              owner: root
+              group: root
+            /root/.aws/config:
+              content: !Sub |
+                [default]
+                region=${AWS::Region}
+              mode: '000600'
+              owner: root
+              group: root
+
+    Properties:
+      KeyName: !Ref 'KeyPairName'
+      ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", BootNodeAmiId]
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp3  
+      IamInstanceProfile: !Ref BootnodeInstanceProfile
+      Tags:
+        - Key: Name
+          Value: 
+            !Sub
+            - "${BootnodeName}-bootnode"
+            - BootnodeName: !Ref BootnodeName 
+      InstanceType: t3.large 
+      NetworkInterfaces:
+      - GroupSet:
+        - !Ref BootnodeSecurityGroup
+        AssociatePublicIpAddress: true
+        DeviceIndex: '0'
+        DeleteOnTermination: true
+        SubnetId: !Ref PublicSubnet1ID  
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -x
+
+            export AWS_REGION=${AWS::Region}
+            export DB_HOST=${DatabaseHostName}
+            export DB_PORT=${DatabasePort}
+            export DB_USERNAME=${DatabaseUserName}
+            export DB_PASSWORD=${DatabasePassword}
+            export DB_NAME=${DatabaseName}
+            export DB_SCHEMA=${DatabaseSchema}
+            export IBM_ENTITLEMENT_KEY=${EntitlementKey}
+            export DB_PASSWORD=${DatabasePassword}
+            export LICENSE=${License}
+            export VERSION=${Version}
+            export WHICH_OMS=${Edition}
+            export OCP_CLUSTER_URL=${OCPURL}
+            export OCP_USERNAME=${OCPUsername}
+            export OCP_PASSWORD=${OCPPassword}
+            
+            
+            #Added the next 5 lines to include required tools for the installation of CP4D
+            yum update -y
+            yum install -y git podman wget jq python3.11 unzip
+            podman version
+            
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+            /usr/local/bin/aws --version
+            rm awscliv2.zip
+
+            cd /tmp
+            qs_retry_command 10 wget https://s3-us-west-1.amazonaws.com/amazon-ssm-us-west-1/latest/linux_amd64/amazon-ssm-agent.rpm
+            qs_retry_command 10 yum install -y ./amazon-ssm-agent.rpm
+            systemctl start amazon-ssm-agent
+            systemctl enable amazon-ssm-agent
+            rm -f ./amazon-ssm-agent.rpm
+
+            wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            chmod a+x /usr/local/bin/yq
+
+            #git clone https://github.ibm.com/aws-marketplace-oms/
+            #cd sterling-oms-ocp-templates/
+            #git checkout dev
+            #git branch
+            #cd scripts/
+
+            mkdir /oms-deploy-aws
+            mkdir /oms-deploy-aws/logs
+            cd /oms-deploy-aws
+            pwd
+
+            aws s3 cp --recursive s3://sterling-nt/sterling-oms-ocp-scripts/scripts . 
+
+            chmod +x *.sh
+
+            case "${DatabaseType}" in
+              "DB2")
+                echo "Deploying OMS with DB2..."
+                ./deploy-oms-db2.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log 2>&1 || echo "Failed to deploy OMS with DB2."
+                ;;
+              "PostgreSQL")
+                echo "Deploying OMS with PostgreSQL..."
+                ./deploy-oms-postgre.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log 2>&1 || echo "Failed to deploy OMS with PostgreSQL."
+                ;;
+              *)
+                echo "Invalid DatabaseType: $DatabaseType. Use 'DB2' or 'PostgreSQL'."
+                ;;
+            esac 
+
+           
+  CleanUpLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import cfnresponse
+          import os
+          import traceback
+          import time
+          def handler(event, context):
+              responseData = {}
+              try:
+                  print("event_obj:",json.dumps(event))
+                  print(event['RequestType'])
+                  if event['RequestType'] == 'Delete':
+                    print("Run unsubscribe script")
+                    ssm = boto3.client('ssm',region_name=os.environ['Region'])
+                    instanceID = os.environ['BootNode']
+                    stackname = os.environ['StackName']
+                    print(instanceID)
+                    response = ssm.send_command(Targets=[{"Key":"instanceids","Values":[instanceID]}],
+                            DocumentName="AWS-RunShellScript",
+                            Parameters={"commands":["/home/ec2-user/destroy.sh %s" %(stackname)],
+                                        "executionTimeout":["1200"],
+                                        "workingDirectory":["/home/ec2-user"]},
+                            Comment="Execute script in uninstall openshift",
+                            TimeoutSeconds=120)
+                    print(response)
+                    current_status = "WAIT"
+                    final_status = "READY"
+                    parameterName = stackname+"_CleanupStatus"           
+                    response = ssm.put_parameter(Name=parameterName,
+                           Description="Waiting for CleanupStatus to be READY",
+                           Value=current_status,
+                           Type='String',
+                           Overwrite=True)        
+                    print(response)    
+                    while(current_status!=final_status):
+                      time.sleep(30) 
+                      response = ssm.get_parameter(Name=parameterName)
+                      parameter = response.get('Parameter')
+                      current_status = parameter.get('Value')
+                      print(current_status)
+                    ssm.delete_parameter(Name=parameterName)    
+              except Exception as e:
+                print(e)
+                traceback.print_exc()
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, '')
+      Environment:
+        Variables:
+          Region: !Ref AWS::Region
+          BootNode: !Ref BootnodeInstance
+          StackName: !Ref AWS::StackName
+      Handler: index.handler
+      Role: !GetAtt 'LambdaExecutionRole.Arn'
+      Runtime: python3.8
+      Timeout: 600
+             
+  Cleanup :
+    Type: Custom::Cleanup
+    Properties:
+      DependsOn: BootnodeInstance
+      ServiceToken: !GetAtt 'CleanUpLambda.Arn'
+ 
+  ICPDInstallationCompletedHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle  
+
+  ICPDInstallationCompleted:
+    Type: AWS::CloudFormation::WaitCondition
+    Properties:
+      Count: 1
+      Handle: !Ref ICPDInstallationCompletedHandle
+      Timeout: '40000'  
+
+Outputs:
+  BootnodeInstanceId:
+    Description: Bootnode Instance ID.
+    Value: !Ref BootnodeInstance
+
+  BootnodePublicIp:
+    Description: The boot node public IP address.
+    Value: !GetAtt BootnodeInstance.PublicIp
