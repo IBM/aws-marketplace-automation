@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to deploy an RDS PostgreSQL instance with optional public access and Multi-AZ.
+
+Parameters:
+  VPCID:
+    Type: AWS::EC2::VPC::Id
+    Description: Select the VPC for the RDS instance.
+
+  SubnetIDs:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Select the subnets in the chosen VPC for the RDS instance.
+
+  RDSInstanceIdentifier:
+    Type: String
+    Description: Identifier for the RDS instance.
+
+  RDSMasterUsername:
+    Type: String
+    Description: Master username for the RDS instance.
+
+  RDSMasterPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for the RDS instance.
+
+  EngineVersion:
+    Type: String
+    Default: "16.2"
+    Description: PostgreSQL engine version.
+
+  AllocatedStorage:
+    Type: Number
+    Default: 50
+    Description: Allocated storage size in GB for the RDS instance.
+
+  PubliclyAccessible:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: Specify whether the RDS instance should be publicly accessible.
+
+  MultiAZ:
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+    Description: Enable or disable Multi-AZ deployment.
+
+Resources:
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS instance.
+      VpcId: !Ref VPCID
+
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub "${RDSInstanceIdentifier}-subnet-group"
+      SubnetIds: !Ref SubnetIDs
+      DBSubnetGroupDescription: Subnet group for RDS instance.
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Ref RDSInstanceIdentifier
+      DBInstanceClass: db.t3.medium
+      Engine: postgres
+      EngineVersion: !Ref EngineVersion
+      MasterUsername: !Ref RDSMasterUsername
+      MasterUserPassword: !Ref RDSMasterPassword
+      AllocatedStorage: !Ref AllocatedStorage
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 7
+      MultiAZ: !Ref MultiAZ
+      StorageType: gp2
+      StorageEncrypted: true
+      PubliclyAccessible: !Ref PubliclyAccessible
+
+Outputs:
+  RDSHost:
+    Description: Endpoint of the RDS instance.
+    Value: !GetAtt RDSInstance.Endpoint.Address
+
+  RDSInstanceID:
+    Description: ID of the RDS instance.
+    Value: !Ref RDSInstanceIdentifier

@@ -1,0 +1,276 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 Key Pair for SSH access to the instance.
+  InstanceName:
+    Type: String
+    Description: Name for the instance to be created.
+  ClusterSize:
+    Description: 'Select your preferred cluster size. All worker nodes (W) are m5.2xlarge instances. Choose
+      from: small (3W, total memory: 96GB), medium (5W, total memory: 160GB),
+      or large (7W, total memory: 224GB).'
+    Type: String
+    Default: small
+    MinLength: '1'
+    AllowedValues:
+        - small
+        - medium
+        - large
+  EntitledRegistryKey:
+    Description: Enter the IBM Entitled Registry Key.
+      Library.
+    Type: String
+    NoEcho: true
+    MinLength: '1'
+  AcceptLicense:
+    Description: 'Accept the license terms.'
+    Type: String
+    Default: Accept
+    AllowedValues:
+         - Accept
+         - Decline
+  DomainName:
+    Description: The public domain name for accessing the Sterling OMS instance.
+    Type: String          
+Resources:
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EC2 instance
+      GroupName: !Sub "${InstanceName}-SecurityGroup"
+      VpcId: vpc-03738f32953df603f
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${InstanceName}-EC2InstanceRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2FullAccess
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess        
+
+  MyCustomPolicyEKS:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub "${InstanceName}-sterling-EksAllAccess"
+      Roles:
+        - !Ref EC2InstanceRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'eks:*'
+            Resource:
+              - '*'
+          - Effect: 'Allow'
+            Action:
+              - 'ssm:GetParameter'
+              - 'ssm:GetParameters'
+            Resource:
+              - 'arn:aws:ssm:*::parameter/aws/*'
+              - Fn::Sub: 'arn:aws:ssm:*:${AWS::AccountId}:parameter/aws/*'
+          - Effect: 'Allow'
+            Action:
+              - 'kms:CreateGrant'
+              - 'kms:DescribeKey'
+            Resource:
+              - '*'
+          - Effect: 'Allow'
+            Action:
+              - 'logs:PutRetentionPolicy'
+            Resource:
+              - '*'
+          - Effect: 'Allow'
+            Action:
+              - 's3:*'
+            Resource:
+              - 'arn:aws:s3:::sterling-nt'
+              - 'arn:aws:s3:::sterling-nt/*'      
+
+  MyCustomPolicyIAM:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub "${InstanceName}-sterling-IamLimitedAccess"
+      Roles:
+        - !Ref EC2InstanceRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'iam:CreateInstanceProfile'
+              - 'iam:DeleteInstanceProfile'
+              - 'iam:GetInstanceProfile'
+              - 'iam:RemoveRoleFromInstanceProfile'
+              - 'iam:GetRole'
+              - 'iam:CreateRole'
+              - 'iam:DeleteRole'
+              - 'iam:AttachRolePolicy'
+              - 'iam:PutRolePolicy'
+              - 'iam:UpdateAssumeRolePolicy'
+              - 'iam:AddRoleToInstanceProfile'
+              - 'iam:ListInstanceProfilesForRole'
+              - 'iam:PassRole'
+              - 'iam:DetachRolePolicy'
+              - 'iam:DeleteRolePolicy'
+              - 'iam:GetRolePolicy'
+              - 'iam:GetOpenIDConnectProvider'
+              - 'iam:CreateOpenIDConnectProvider'
+              - 'iam:DeleteOpenIDConnectProvider'
+              - 'iam:TagOpenIDConnectProvider'
+              - 'iam:ListAttachedRolePolicies'
+              - 'iam:TagRole'
+              - 'iam:UntagRole'
+              - 'iam:GetPolicy'
+              - 'iam:CreatePolicy'
+              - 'iam:DeletePolicy'
+              - 'iam:ListPolicyVersions'
+            Resource:
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:instance-profile/eksctl-*'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/eksctl-*'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:policy/eksctl-*'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:oidc-provider/*'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/eksctl-managed-*'
+          - Effect: 'Allow'
+            Action:
+              - 'iam:GetRole'
+              - 'iam:GetUser'
+            Resource:
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:role/*'
+              - Fn::Sub: 'arn:aws:iam::${AWS::AccountId}:user/*'
+          - Effect: Allow
+            Action:
+              - 'iam:CreateServiceLinkedRole'
+            Resource: "*"
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - 'eks.amazonaws.com'
+                  - 'eks-nodegroup.amazonaws.com'
+                  - 'eks-fargate.amazonaws.com'
+  MyCustomEFSPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub "${InstanceName}-sterling-EFSLimitedAccess"
+      Roles:
+        - !Ref EC2InstanceRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'elasticfilesystem:DescribeFileSystems'
+              - 'elasticfilesystem:CreateFileSystem'
+              - 'elasticfilesystem:TagResource'
+              - 'elasticfilesystem:DescribeMountTargets'
+              - 'elasticfilesystem:CreateMountTarget'
+              - 'elasticfilesystem:DescribeAccessPoints'
+              - 'elasticfilesystem:CreateAccessPoint'
+              - 'elasticfilesystem:DeleteAccessPoint'
+              - 'elasticfilesystem:DescribeMountTargetSecurityGroups'
+            Resource:
+              - '*'
+  MyCustomRDSPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: !Sub "${InstanceName}-sterling-RDSLimitedAccess"
+      Roles:
+        - !Ref EC2InstanceRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'rds:CreateDBSubnetGroup'
+              - 'rds:CreateDBInstance'
+              - 'rds:DescribeDBInstances'
+              - 'rds:AddTagsToResource'
+            Resource:
+              - '*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2InstanceRole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0aa8fc2422063977a
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 80
+            VolumeType: gp3
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: subnet-068bc9661bea107d1
+          GroupSet:
+            - !Ref EC2SecurityGroup
+      Tags:
+        - Key: project
+          Value: sterling-marketplace
+        - Key: org-team
+          Value: AWS_SP
+        - Key: Name
+          Value: !Ref InstanceName
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum install -y git
+          sudo yum install -y unzip 
+          sudo yum install -y wget
+          export IBM_ENTITLEMENT_KEY=${EntitledRegistryKey}
+          export LICENSE=${AcceptLicense}
+          export DOMAIN_NAME=${DomainName}
+          export EKS_CLUSTER_NAME=${InstanceName}
+          export REGION=${AWS::Region}
+          export CLUSTER_SIZE=${ClusterSize}
+          export InstanceName=${InstanceName}
+
+          #git clone https://github.ibm.com/aws-marketplace-oms/sterling-oms-eks-templates.git
+          #cd sterling-oms-eks-templates/
+          #git checkout dev
+          #git branch
+          #cd scripts/
+
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install
+          /usr/local/bin/aws --version
+          rm awscliv2.zip
+
+          mkdir /oms-deploy-aws
+          mkdir /oms-deploy-aws/logs
+          cd /oms-deploy-aws
+          pwd
+
+          aws s3 cp --recursive s3://sterling-nt/sterling-oms-eks-templates/scripts . 
+
+          chmod +x *.sh
+          
+          ./create-eks-cluster.sh ${InstanceName} ${AWS::Region} ${ClusterSize} > /oms-deploy-aws/logs/create-eks-cluster_$(date +'%Y%m%d_%H%M%S').log &&
+           
+          ./create-rds.sh > /oms-deploy-aws/logs/create-rds_$(date +'%Y%m%d_%H%M%S').log &&
+          
+          ./create-efs.sh > /oms-deploy-aws/logs/create-efs_$(date +'%Y%m%d_%H%M%S').log &&
+          
+          ./oms-deploy.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log
