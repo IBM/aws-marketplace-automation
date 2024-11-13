@@ -952,7 +952,6 @@ Resources:
             
             # /usr/local/bin/cfn-signal --exit-code $ecode --id $AWS_STACKID  --data "See logs at $HOME/cpd-status/log/"
             /usr/local/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource BootnodeInstance --region ${AWS::Region} --data $OCP_CLUSTER_URL
-
             
             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
             unzip -q awscliv2.zip
@@ -963,9 +962,8 @@ Resources:
             mkdir /oms-deploy-aws
             mkdir /oms-deploy-aws/logs
             cd /oms-deploy-aws
-            pwd
-
-            aws s3 cp --recursive s3://sterling-nt/sterling-oms-ocp-scripts/scripts . 
+            git clone https://github.com/IBM/aws-marketplace-automation.git
+            cd aws-marketplace-automation/sterling-oms-ocp-templates/scripts/ 
 
             chmod +x *.sh
 

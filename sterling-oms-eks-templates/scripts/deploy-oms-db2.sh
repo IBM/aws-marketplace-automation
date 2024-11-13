@@ -658,11 +658,6 @@ metadata:
   name: ${OMS_INSTANCE_NAME}
   namespace: ${OMS_NAMESPACE}
   annotations:
-    apps.oms.ibm.com/dbvendor-install-driver: "true"
-    apps.oms.ibm.com/dbvendor-auto-transform: "true"
-    apps.oms.ibm.com/dbvendor-driver-url: "https://jdbc.postgresql.org/download/postgresql-42.2.27.jre7.jar"
-    apps.oms.ibm.com/activemq-install-driver: 'yes'
-    apps.oms.ibm.com/activemq-driver-url: "https://repo1.maven.org/maven2/org/apache/activemq/activemq-all/5.16.0/activemq-all-5.16.0.jar"    
     apps.oms.ibm.com/activemq-install-driver: 'yes'
     apps.oms.ibm.com/activemq-driver-url: "https://repo1.maven.org/maven2/org/apache/activemq/activemq-all/5.16.0/activemq-all-5.16.0.jar"
 spec:
@@ -683,14 +678,15 @@ spec:
       replicaCount: 1
       profile: ProfileMedium
   database:
-    postgresql:
+    db2:
       dataSourceName: jdbc/OMDS
-      host: "${RDS_HOST}"
+      host: ${DB_HOST}
       name: ${DB_NAME}
-      port: 5432
-      schema: ${SCHEMA_NAME}
+      port: ${DB_PORT}
+      schema: ${DB_SCHEMA}
       secure: false
-      user: ${MASTER_USERNAME}
+      user: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
   dataManagement:
     mode: create
   storage:

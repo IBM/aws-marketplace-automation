@@ -395,18 +395,11 @@ Resources:
             wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
             chmod a+x /usr/local/bin/yq
 
-            #git clone https://github.ibm.com/aws-marketplace-oms/
-            #cd sterling-oms-ocp-templates/
-            #git checkout dev
-            #git branch
-            #cd scripts/
-
             mkdir /oms-deploy-aws
             mkdir /oms-deploy-aws/logs
             cd /oms-deploy-aws
-            pwd
-
-            aws s3 cp --recursive s3://sterling-nt/sterling-oms-ocp-scripts/scripts . 
+            git clone https://github.com/IBM/aws-marketplace-automation.git
+            cd aws-marketplace-automation/sterling-oms-ocp-templates/scripts/ 
 
             chmod +x *.sh
 

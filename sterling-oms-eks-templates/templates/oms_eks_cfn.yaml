@@ -32,7 +32,42 @@ Parameters:
          - Decline
   DomainName:
     Description: The public domain name for accessing the Sterling OMS instance.
-    Type: String          
+    Type: String
+
+  DatabaseType:
+    Description: Type of the database to use (DB2 or PostgreSQL).
+    Type: String
+    AllowedValues:
+      - DB2
+      - PostgreSQL
+    Default: PostgreSQL
+
+  DatabaseHostName:
+    Description: Hostname or IP address of the database server.
+    Type: String
+
+  DatabasePort:
+    Description: Port number for database connection.
+    Type: Number
+    Default: 5432
+
+  DatabaseUserName:
+    Description: Username for connecting to the database.
+    Type: String
+
+  DatabasePassword:
+    Description: Password for the database user (hidden for security).
+    Type: String
+    NoEcho: true
+
+  DatabaseSchema:
+    Description: Schema name to use within the database.
+    Type: String
+
+  DatabaseName:
+    Description: Name of the database.
+    Type: String    
+
 Resources:
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -245,13 +280,13 @@ Resources:
           export REGION=${AWS::Region}
           export CLUSTER_SIZE=${ClusterSize}
           export InstanceName=${InstanceName}
-
-          #git clone https://github.ibm.com/aws-marketplace-oms/sterling-oms-eks-templates.git
-          #cd sterling-oms-eks-templates/
-          #git checkout dev
-          #git branch
-          #cd scripts/
-
+          export DB_HOST=${DatabaseHostName}
+          export DB_PORT=${DatabasePort}
+          export DB_USERNAME=${DatabaseUserName}
+          export DB_PASSWORD=${DatabasePassword}
+          export DB_NAME=${DatabaseName}
+          export DB_SCHEMA=${DatabaseSchema}
+    
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip -q awscliv2.zip
           sudo ./aws/install
@@ -261,9 +296,8 @@ Resources:
           mkdir /oms-deploy-aws
           mkdir /oms-deploy-aws/logs
           cd /oms-deploy-aws
-          pwd
-
-          aws s3 cp --recursive s3://sterling-nt/sterling-oms-eks-templates/scripts . 
+          git clone https://github.com/IBM/aws-marketplace-automation.git
+          cd aws-marketplace-automation/sterling-oms-eks-templates/scripts/
 
           chmod +x *.sh
           
@@ -272,5 +306,17 @@ Resources:
           ./create-rds.sh > /oms-deploy-aws/logs/create-rds_$(date +'%Y%m%d_%H%M%S').log &&
           
           ./create-efs.sh > /oms-deploy-aws/logs/create-efs_$(date +'%Y%m%d_%H%M%S').log &&
-          
-          ./oms-deploy.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log
+
+          case "${DatabaseType}" in
+              "DB2")
+                echo "Deploying OMS with DB2..."
+                ./deploy-oms-db2.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log 2>&1 || echo "Failed to deploy OMS with DB2."
+                ;;
+              "PostgreSQL")
+                echo "Deploying OMS with PostgreSQL..."
+                ./deploy-oms-postgre.sh > /oms-deploy-aws/logs/oms-deploy_$(date +'%Y%m%d_%H%M%S').log 2>&1 || echo "Failed to deploy OMS with PostgreSQL."
+                ;;
+              *)
+                echo "Invalid DatabaseType: $DatabaseType. Use 'DB2' or 'PostgreSQL'."
+                ;;
+          esac
