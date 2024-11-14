@@ -433,7 +433,7 @@ Resources:
   NewVPCStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-        TemplateURL: https://raw.githubusercontent.com/IBM/aws-marketplace-automation/4029ba7e7b10f611a6a43247883b4e2c35f9a8c7/sterling-oms-ocp-templates/templates/vpc-cfn.yaml
+        TemplateURL: https://sterling-nt.s3.us-east-2.amazonaws.com/cfn/vpc-cfn.yaml
         Parameters:
           VpcCidr: !Ref VpcCidr
           SubnetBits: !Ref SubnetBits

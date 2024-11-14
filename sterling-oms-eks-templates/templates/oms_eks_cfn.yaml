@@ -1,4 +1,34 @@
 AWSTemplateFormatVersion: 2010-09-09
+Description: Template for EKS deployment.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: 
+          default: New Cluster Configuration
+        Parameters:
+          - ClusterSize
+          - DomainName
+      - Label:
+          default: OMS
+        Parameters:
+          - EntitlementKey
+          - License
+      - Label:
+          default: Database Configuration
+        Parameters:  
+          - DatabaseType
+          - DatabaseHostName
+          - DatabasePort
+          - DatabaseUserName
+          - DatabasePassword
+          - DatabaseSchema
+          - DatabaseName
+      - Label: 
+          default: Instance Configuration
+        Parameters:
+          - KeyName
+          - InstanceName
+      
 Parameters:
   KeyName:
     Type: AWS::EC2::KeyPair::KeyName
@@ -17,13 +47,13 @@ Parameters:
         - small
         - medium
         - large
-  EntitledRegistryKey:
+  EntitlementKey:
     Description: Enter the IBM Entitled Registry Key.
       Library.
     Type: String
     NoEcho: true
     MinLength: '1'
-  AcceptLicense:
+  License:
     Description: 'Accept the license terms.'
     Type: String
     Default: Accept
@@ -33,7 +63,6 @@ Parameters:
   DomainName:
     Description: The public domain name for accessing the Sterling OMS instance.
     Type: String
-
   DatabaseType:
     Description: Type of the database to use (DB2 or PostgreSQL).
     Type: String
@@ -41,29 +70,23 @@ Parameters:
       - DB2
       - PostgreSQL
     Default: PostgreSQL
-
   DatabaseHostName:
     Description: Hostname or IP address of the database server.
     Type: String
-
   DatabasePort:
     Description: Port number for database connection.
     Type: Number
     Default: 5432
-
   DatabaseUserName:
     Description: Username for connecting to the database.
     Type: String
-
   DatabasePassword:
     Description: Password for the database user (hidden for security).
     Type: String
     NoEcho: true
-
   DatabaseSchema:
     Description: Schema name to use within the database.
     Type: String
-
   DatabaseName:
     Description: Name of the database.
     Type: String    
@@ -273,8 +296,8 @@ Resources:
           sudo yum install -y git
           sudo yum install -y unzip 
           sudo yum install -y wget
-          export IBM_ENTITLEMENT_KEY=${EntitledRegistryKey}
-          export LICENSE=${AcceptLicense}
+          export IBM_ENTITLEMENT_KEY=${EntitlementKey}
+          export LICENSE=${License}
           export DOMAIN_NAME=${DomainName}
           export EKS_CLUSTER_NAME=${InstanceName}
           export REGION=${AWS::Region}
