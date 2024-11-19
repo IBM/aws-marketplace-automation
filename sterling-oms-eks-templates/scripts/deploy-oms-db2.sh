@@ -18,7 +18,6 @@ log-info "Script started"
 
 
 # Check required parameters
-if [[ -z $RESOURCE_GROUP ]]; then log-error "RESOURCE_GROUP not defined"; exit 1; fi
 if [[ -z $IBM_ENTITLEMENT_KEY ]]; then log-error "IBM_ENTITLEMENT_KEY not defined"; exit 1; fi
 if [[ -z $ADMIN_PASSWORD ]]; then log-error "ADMIN_PASSWORD not defined"; exit 1; fi
 #if [[ -z $RDS_HOST ]]; then log-error "RDS_HOST not defined"; exit 1; fi
