@@ -17,6 +17,14 @@ This repository contains infrastructure-as-code (IaC) templates for deploying IB
 
 *Architecture that shows the interaction between EC2, EKS, RDS, EFS, and other AWS resources.*
 
+### Database Options
+
+The following databases are supported as prerequisites for the IBM Sterling OMS deployment:
+
+1. ![**DB2 on EC2**](db2/DB2_README.md): A CloudFormation template to deploy a DB2 database on an EC2 instance. This requires the DB2 installer to be available in an S3 bucket.
+2. ![**PostgreSQL on RDS**](postgresql/postgresql_README.md): A CloudFormation template to deploy a managed PostgreSQL instance on Amazon RDS.
+
+You can choose one of these database options based on your environment and preferences.
 ---
 ### CloudFormation Template Execution
 
