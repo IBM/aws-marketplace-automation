@@ -1,3 +1,7 @@
+Here's the updated `README.md` file with parameters aligned to the CloudFormation template provided:
+
+---
+
 # IBM Sterling OMS Deployment on AWS
 
 This repository contains infrastructure-as-code (IaC) templates for deploying IBM Sterling Order Management System (OMS) on Amazon Web Services (AWS). The deployment leverages AWS CloudFormation for creating and managing the necessary AWS resources, such as EC2 instances, security groups, IAM roles, and other resources.
@@ -21,11 +25,13 @@ This repository contains infrastructure-as-code (IaC) templates for deploying IB
 
 The following databases are supported as prerequisites for the IBM Sterling OMS deployment:
 
-1. ![**DB2 on EC2**](db2/DB2_README.md): A CloudFormation template to deploy a DB2 database on an EC2 instance. This requires the DB2 installer to be available in an S3 bucket.
-2. ![**PostgreSQL on RDS**](postgresql/postgresql_README.md): A CloudFormation template to deploy a managed PostgreSQL instance on Amazon RDS.
+1. **[DB2 on EC2](db2/DB2_README.md)**: A CloudFormation template to deploy a DB2 database on an EC2 instance. This requires the DB2 installer to be available in an S3 bucket.
+2. **[PostgreSQL on RDS](postgresql/postgresql_README.md)**: A CloudFormation template to deploy a managed PostgreSQL instance on Amazon RDS.
 
 You can choose one of these database options based on your environment and preferences.
+
 ---
+
 ### CloudFormation Template Execution
 
 To deploy IBM Sterling OMS using the CloudFormation template:
@@ -42,14 +48,23 @@ To deploy IBM Sterling OMS using the CloudFormation template:
 
 4. **Provide the necessary parameters:**
 
-   | Parameter             | Description                                                                 | Example Value      |
-   |-----------------------|-----------------------------------------------------------------------------|--------------------|
-   | `KeyName`             | Name of an existing EC2 Key Pair for SSH access to the instance.             | `my-key-pair`      |
-   | `InstanceName`        | Name for the instance to be created.                                     | `sterling-oms` |
-   | `ClusterSize`         | Preferred cluster size for the EKS cluster (small, medium, large).           | `small`            |
-   | `EntitledRegistryKey` | IBM Entitled Registry Key.                                                   | `your-entitlement-key` |
-   | `AcceptLicense`       | Accept the license terms (Accept/Decline).                                   | `Accept`           |
-   | `DomainName`          | The public domain name for accessing the Sterling OMS instance.              | `example.com`      |
+   | Parameter             | Description                                                                                 | Example Value             |
+   |-----------------------|---------------------------------------------------------------------------------------------|---------------------------|
+   | `KeyName`             | Name of an existing EC2 Key Pair for SSH access to the instance.                            | `my-key-pair`             |
+   | `InstanceName`        | Name for the instance to be created.                                                        | `sterling-oms`            |
+   | `ClusterSize`         | Preferred cluster size for the EKS cluster (small, medium, large).                          | `small`                   |
+   | `EntitlementKey`      | IBM Entitled Registry Key.                                                                  | `your-entitlement-key`    |
+   | `License`             | Accept the license terms (Accept/Decline).                                                  | `Accept`                  |
+   | `Edition`             | OMS Edition to deploy (professional or enterprise).                                         | `enterprise`              |
+   | `Version`             | Version of IBM Sterling OMS to deploy (e.g., `10.0.2306.0`).                                | `10.0.2306.0`             |
+   | `DomainName`          | The public domain name for accessing the Sterling OMS instance.                             | `example.com`             |
+   | `DatabaseType`        | Type of the database to use (DB2 or PostgreSQL).                                            | `PostgreSQL`              |
+   | `DatabaseHostName`    | Hostname or IP address of the database server.                                              | `rds.amazonaws.com`       |
+   | `DatabasePort`        | Port number for database connection.                                                        | `5432`                    |
+   | `DatabaseUserName`    | Username for connecting to the database.                                                    | `dbadmin`                 |
+   | `DatabasePassword`    | Password for the database user. (Hidden for security)                                       | `your-password`           |
+   | `DatabaseSchema`      | Schema name to use within the database.                                                     | `oms_schema`              |
+   | `DatabaseName`        | Name of the database.                                                                       | `omsdb`                   |
 
 5. **Review and create the stack:**
    - After filling in the parameters, review the settings, acknowledge the IAM resources being created, and click "Create Stack".
@@ -58,14 +73,17 @@ To deploy IBM Sterling OMS using the CloudFormation template:
    - The stack will begin to create the required resources. You can monitor the progress in the "Events" tab of the CloudFormation stack page.
    - Once the stack is created successfully, your Sterling OMS instance and supporting AWS resources will be provisioned.
 
+---
+
 ### Resources Created
 
-- **EC2 Instance**: An EC2 instance is created to host the Sterling OMS setup.
+- **EC2 Instance**: An EC2 instance to host the Sterling OMS setup.
 - **Security Group**: A security group allowing SSH (port 22) access to the EC2 instance.
-- **IAM Role**: An IAM role with policies for managing EC2, EKS, and other AWS services.
+- **IAM Role and Policies**: IAM roles and policies for managing EC2, EKS, RDS, and other AWS services.
 - **EKS Cluster**: An EKS cluster based on the specified cluster size (small, medium, large).
-- **RDS Instance**: A PostgreSQL database instance for Sterling OMS.
 - **EFS**: Amazon EFS for shared storage used by the OMS system.
+
+---
 
 ### Post-Deployment
 
@@ -85,7 +103,7 @@ Once the stack creation is complete:
 
 **Storage**:  
 - **Amazon EFS (Elastic File System)** - Shared storage for Sterling OMS.
-- **Amazon RDS (Relational Database Service)** - PostgreSQL database for Sterling OMS.
+- **Amazon RDS (Relational Database Service)** - PostgreSQL database for Sterling OMS or DB2 on EC2.
 
 ---
 
