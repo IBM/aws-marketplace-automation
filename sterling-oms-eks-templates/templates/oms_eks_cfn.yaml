@@ -339,8 +339,6 @@ Resources:
           
           ./create-eks-cluster.sh ${InstanceName} ${AWS::Region} ${ClusterSize} > /oms-deploy-aws/logs/create-eks-cluster_$(date +'%Y%m%d_%H%M%S').log &&
            
-          ./create-rds.sh > /oms-deploy-aws/logs/create-rds_$(date +'%Y%m%d_%H%M%S').log &&
-          
           ./create-efs.sh > /oms-deploy-aws/logs/create-efs_$(date +'%Y%m%d_%H%M%S').log &&
 
           case "${DatabaseType}" in
