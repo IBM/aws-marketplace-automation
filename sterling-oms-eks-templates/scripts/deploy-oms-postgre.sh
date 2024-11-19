@@ -21,7 +21,7 @@ log-info "Script started"
 if [[ -z $RESOURCE_GROUP ]]; then log-error "RESOURCE_GROUP not defined"; exit 1; fi
 if [[ -z $IBM_ENTITLEMENT_KEY ]]; then log-error "IBM_ENTITLEMENT_KEY not defined"; exit 1; fi
 if [[ -z $ADMIN_PASSWORD ]]; then log-error "ADMIN_PASSWORD not defined"; exit 1; fi
-if [[ -z $RDS_HOST ]]; then log-error "RDS_HOST not defined"; exit 1; fi
+#if [[ -z $RDS_HOST ]]; then log-error "RDS_HOST not defined"; exit 1; fi
 #if [[ -z $TRUSTSTORE_PASSWORD ]]; then log-error "TRUSTSTORE_PASSWORD not defined"; exit 1; fi
 if [[ -z $DOMAIN_NAME ]]; then log-error "DOMAIN_NAME is not defined"; fi
 
@@ -386,114 +386,6 @@ EOF
     fi
 else
     log-info "OMS Secret already exists"
-fi
-
-
-
-######
-# Create psql pod to manage DB (this will be used to create db and schema)
-if [[ -z $(kubectl get pods -n ${OMS_NAMESPACE} ${PSQL_POD_NAME} 2> /dev/null ) ]]; then
-    log-info "Creating new psql client pod ${PSQL_POD_NAME} in namespace ${OMS_NAMESPACE}"
-    cat << EOF | kubectl apply -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ${PSQL_POD_NAME}
-  namespace: ${OMS_NAMESPACE}
-spec:
-  containers:
-    - name: psql-container
-      image: ${PSQL_IMAGE}
-      command: [ "/bin/bash", "-c", "--" ]
-      args: [ "while true; do sleep 30; done;" ]
-      env:
-        - name: RDS_HOST
-          value: ${RDS_HOST}
-        - name: PSQL_ADMIN
-          value: ${ADMIN_USER}
-        - name: PSQL_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: oms-secret
-              key: dbPassword
-        - name: DB_NAME
-          value: ${DB_NAME}
-        - name: SCHEMA_NAME
-          value: ${SCHEMA_NAME}
-EOF
-    if (( $? == 0 )) ; then
-        log-info "Successfully created psql client pod ${PSQL_POD_NAME} in namespace ${OMS_NAMESPACE}"
-    else
-        log-error "Unable to create psql client pod ${PSQL_POD_NAME} in namespace ${OMS_NAMESPACE}"
-        exit 1
-    fi
-else
-    log-info "Using existing psql client pod ${PSQL_POD_NAME} in namespace ${OMS_NAMESPACE}"
-fi
-
-# Wait for psql pod to start
-count=1;
-while [[ $(kubectl get pods -n ${OMS_NAMESPACE} | grep ${PSQL_POD_NAME} | awk '{print $3}') != "Running" ]]; do
-    log-info "Waiting for psql client pod ${PSQL_POD_NAME} to start. Waited $(( $count * 30 )) seconds. Will wait up to 300 seconds."
-    sleep 30
-    count=$(( $count + 1 ))
-    if (( $count > 10 )); then
-        log-error "Timeout waiting for pod ${PSQL_POD_NAME} to start."
-        exit 1
-    fi
-done
-log-info "PSQL POD $PSQL_POD_NAME successfully started"
-
-#Create and configure the database for OMS installation 
-
-# Check if the RDS instance exists
-if [[ -z $(aws rds describe-db-instances --query "DBInstances[?DBInstanceIdentifier=='${RDS_INSTANCE_IDENTIFIER}'] | [0]" --output text) ]]; then
-    log-error "RDS instance ${RDS_INSTANCE_IDENTIFIER} not found"
-    exit 1
-else
-    log-info "RDS instance ${RDS_INSTANCE_IDENTIFIER} found"
-
-    # Check if the database exists
-    log-info "Checking if ${DB_NAME} already exists in ${RDS_INSTANCE_IDENTIFIER} instance"
-    DB_EXISTS=$(kubectl exec ${RDS_POD_NAME} -n ${NAMESPACE} -- /usr/bin/psql "postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${RDS_HOST}:5432/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}';")
-
-    if [[ "$DB_EXISTS" != "1" ]]; then
-        log-info "Creating database $DB_NAME in RDS instance $RDS_INSTANCE_IDENTIFIER"
-        SQL_CREATE_DB="CREATE DATABASE $DB_NAME;"
-        if error=$(kubectl exec ${RDS_POD_NAME} -n ${NAMESPACE} -- /usr/bin/psql "postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${RDS_HOST}:5432/postgres" -c "${SQL_CREATE_DB}" 2>&1); then
-            log-info "Successfully created database $DB_NAME on RDS instance $RDS_INSTANCE_IDENTIFIER"
-        else
-            log-error "Unable to create database $DB_NAME on RDS instance $RDS_INSTANCE_IDENTIFIER with error $error"
-            exit 1
-        fi
-    else
-        log-info "Database $DB_NAME already exists in RDS instance $RDS_INSTANCE_IDENTIFIER"
-    fi
-
-    # Proceed to check if the schema exists
-    SCHEMA_EXISTS=$(kubectl exec ${RDS_POD_NAME} -n ${NAMESPACE} -- /usr/bin/psql "postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${RDS_HOST}:5432/${DB_NAME}" -tAc "SELECT schema_name FROM information_schema.schemata WHERE schema_name = '${SCHEMA_NAME}';" | grep -w "${SCHEMA_NAME}")
-
-    if [[ -z "$SCHEMA_EXISTS" ]]; then
-        log-info "Creating schema $SCHEMA_NAME in database $DB_NAME"
-        if error=$(kubectl exec ${RDS_POD_NAME} -n ${NAMESPACE} -- /usr/bin/psql "postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${RDS_HOST}:5432/${DB_NAME}" -c "CREATE SCHEMA $SCHEMA_NAME;" 2>&1); then
-            log-info "Successfully created schema $SCHEMA_NAME in database $DB_NAME on RDS instance $RDS_INSTANCE_IDENTIFIER"
-        else
-            log-error "Unable to create schema $SCHEMA_NAME in database $DB_NAME with error $error"
-            exit 1
-        fi
-    else
-        log-info "Schema $SCHEMA_NAME already exists in database $DB_NAME"
-    fi
-
-    # Grant ALL privileges on schema to the user
-    log-info "Granting ALL privileges on schema $SCHEMA_NAME to user $MASTER_USERNAME"
-    SQL_GRANT="GRANT ALL PRIVILEGES ON SCHEMA $SCHEMA_NAME TO $MASTER_USERNAME;"
-    if error=$(kubectl exec ${RDS_POD_NAME} -n ${NAMESPACE} -- /usr/bin/psql "postgresql://${MASTER_USERNAME}:${MASTER_PASSWORD}@${RDS_HOST}:5432/${DB_NAME}" -c "${SQL_GRANT}" 2>&1); then
-        log-info "Successfully granted ALL privileges on schema $SCHEMA_NAME to user $GRANT_USER"
-    else
-        log-error "Unable to grant privileges on schema $SCHEMA_NAME with error $error"
-        exit 1
-    fi
 fi
 
 

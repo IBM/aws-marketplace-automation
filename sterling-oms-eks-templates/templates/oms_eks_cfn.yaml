@@ -13,6 +13,8 @@ Metadata:
         Parameters:
           - EntitlementKey
           - License
+          - Edition
+          - Version          
       - Label:
           default: Database Configuration
         Parameters:  
@@ -60,6 +62,15 @@ Parameters:
     AllowedValues:
          - Accept
          - Decline
+  Edition:
+    Description: Select your OMS Edition.
+    Type: String
+    AllowedValues:
+      - professional
+      - enterprise
+  Version:
+    Description: "Select your OMS version. (Ex: 10.0.2306.0)"
+    Type: String
   DomainName:
     Description: The public domain name for accessing the Sterling OMS instance.
     Type: String
@@ -309,6 +320,8 @@ Resources:
           export DB_PASSWORD=${DatabasePassword}
           export DB_NAME=${DatabaseName}
           export DB_SCHEMA=${DatabaseSchema}
+          export VERSION=${Version}
+          export WHICH_OMS=${Edition}
     
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip -q awscliv2.zip
