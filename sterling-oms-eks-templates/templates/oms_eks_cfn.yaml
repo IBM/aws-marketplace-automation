@@ -58,7 +58,7 @@ Parameters:
   License:
     Description: 'Accept the license terms.'
     Type: String
-    Default: Accept
+    Default: accept
     AllowedValues:
          - accept
          - decline
